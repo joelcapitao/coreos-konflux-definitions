@@ -1,0 +1,88 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: kola-test-pipeline
+spec:
+  description: >-
+    Expects a list of container images to be provided via the SNAPSHOT parameter.
+    A secret containing the testing-farm API token should be made available via a secret with the name `testing-farm-secret` containing a key `testing-farm-token`.
+  params:
+    - name: SNAPSHOT
+      description: A list of container images that should undergo testing
+      type: string
+    - name: GIT_URL
+      description: URL of the GIT repository that contains the tests.
+      default: "https://github.com/joelcapitao/coreos-konflux-definitions/"
+      type: string
+    - name: GIT_REF
+      default: "add_kola_tf"
+      description: Branch of the git repository used containing the tests
+      type: string
+    # https://github.com/redhat-appstudio/infra-deployments/blob/main/components/integration/production/base/kustomization.yaml#L23
+    - name: TIMEOUT
+      default: "180"
+      description: Set the timeout for the request in minutes. If the test takes longer than this, it will be terminated.
+      type: string
+    - name: TESTING_FARM_API_URL
+      default: https://api.dev.testing-farm.io/v0.1
+      description: The testing-farm instance API to use
+    - name: INTEGRATION_TEST_SECRET
+      default: testing-farm-secret
+      description: Integration test secrets
+      type: string
+    - name: TMT_TAG
+      default: "qemu"
+      type: string
+    - name: DEBUG_OUTPUT
+      default: "1"
+      type: string
+    - name: WAIVE
+      default: "0"
+      type: string
+    - name: SKIP
+      default: "0"
+      type: string
+    - name: TF_ARCHS
+      #default: "x86_64,aarch64,ppc64le,s390x"
+      default: "x86_64"
+      type: string
+  results:
+    - name: IMAGE_URL
+      value: $(tasks.testing-farm.results.IMAGE_URL)
+    - name: TESTING_FARM_API_REQUEST_URL
+      value: $(tasks.testing-farm.results.TESTING_FARM_API_REQUEST_URL)
+  tasks:
+    - name: testing-farm
+      taskRef:
+        resolver: git
+        params:
+          - name: url
+            value: $(params.GIT_URL)
+          - name: revision
+            value: $(params.GIT_REF)
+          - name: pathInRepo
+            value: tekton/testing-farm.yaml
+      params:
+        - name: SNAPSHOT
+          value: $(params.SNAPSHOT)
+        - name: GIT_URL
+          value: $(params.GIT_URL)
+        - name: GIT_REF
+          value: $(params.GIT_REF)
+        - name: TIMEOUT
+          value: $(params.TIMEOUT)
+        - name: TESTING_FARM_API_URL
+          value: $(params.TESTING_FARM_API_URL)
+        - name: SECRET_NAME
+          value: $(params.INTEGRATION_TEST_SECRET)
+        - name: TMT_TAG
+          value: $(params.TMT_TAG)
+        - name: DEBUG_OUTPUT
+          value: $(params.DEBUG_OUTPUT)
+        - name: WAIVE
+          value: $(params.WAIVE)
+        - name: SKIP
+          value: $(params.SKIP)
+        - name: TF_ARCHS
+          value: $(params.TF_ARCHS)
+      timeout: "4h" # https://tekton.dev/docs/pipelines/tasks/#specifying-a-timeout

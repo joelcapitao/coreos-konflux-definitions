@@ -1,0 +1,127 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: testing-farm
+spec:
+  description: Initiate testing-farm test given a list of container images
+  params:
+    - name: SNAPSHOT
+      description: A list of container images that should undergo testing
+    - name: GIT_URL
+      description: URL of the GIT repository that contains the tests.
+    - name: GIT_REF
+      description: Branch of the git repository used containing the tests
+    - name: TIMEOUT
+      description: Set the timeout for the request in minutes. If the test takes longer than this, it will be terminated.
+    - name: TESTING_FARM_API_URL
+      description: The testing-farm instance API to use
+    - name: SECRET_NAME
+    - name: TMT_TAG
+    - name: DEBUG_OUTPUT
+    - name: WAIVE
+    - name: SKIP
+    - name: TF_ARCHS
+  results:
+    - name: IMAGE_URL
+    - name: TESTING_FARM_API_REQUEST_URL
+  volumes:
+    - name: integration-test-secret
+      secret:
+        secretName: $(params.SECRET_NAME)
+    - name: podinfo
+      downwardAPI:
+        items:
+          - path: "labels"
+            fieldRef:
+              fieldPath: metadata.labels
+          - path: "annotations"
+            fieldRef:
+              fieldPath: metadata.annotations
+  stepTemplate:
+    computeResources:
+      limits:
+        memory: 256Mi
+      requests:
+        memory: 128Mi
+  steps:
+    - name: testing-farm
+      image: quay.io/testing-farm/cli:latest
+      volumeMounts:
+        - name: integration-test-secret
+          mountPath: "/etc/secrets"
+          readOnly: true
+        - name: podinfo
+          mountPath: /etc/podinfo
+      env:
+        - name: SNAPSHOT
+          value: $(params.SNAPSHOT)
+        - name: GIT_URL
+          value: $(params.GIT_URL)
+        - name: GIT_REF
+          value: $(params.GIT_REF)
+        - name: TIMEOUT
+          value: $(params.TIMEOUT)
+        - name: TESTING_FARM_API_URL
+          value: $(params.TESTING_FARM_API_URL)
+        - name: TMT_TAG
+          value: $(params.TMT_TAG)
+        - name: DEBUG_OUTPUT
+          value: $(params.DEBUG_OUTPUT)
+        - name: WAIVE
+          value: $(params.WAIVE)
+        - name: SKIP
+          value: $(params.SKIP)
+        - name: TF_ARCHS
+          value: $(params.TF_ARCHS)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        [[ "${DEBUG_OUTPUT}" == "1" ]] && set -x
+
+        if [[ "${SKIP}" == "1" ]]; then
+          echo "Skip the tests."
+          printf "%s" "Test was skipped" >"$(results.IMAGE_URL.path)"
+          printf "%s" "Test was skipped" >"$(results.TESTING_FARM_API_REQUEST_URL.path)"
+          exit 0
+        fi
+        wget -q "${GIT_URL}/raw/refs/heads/${GIT_REF}/tekton/scripts/konflux_utils.sh"
+        . ./konflux_utils.sh
+        installAlpinePkgs
+        getEnvSecrets
+        getEnv
+        if [[ ${COUNT} -ne 1 ]]; then
+          echo "Error: multiple images: ${IMAGES} in this application with component name: ${COMPONENT}"
+          exit 1
+        fi
+        echo "$IMAGE"
+        printf "%s" "${IMAGE}" >"$(results.IMAGE_URL.path)"
+        OVERALL_RESULT="testing-farm"
+        parseImage
+        # TODO:remove this after cleanup *-aarch64 ITS
+        if [[ ${SCENARIO} == *aarch64 ]]; then
+          ARCH=aarch64
+        fi
+        callTF
+        printf "%s" "$TESTING_FARM_API_URL/requests/${R_ID}" >"$(results.TESTING_FARM_API_REQUEST_URL.path)"
+        waitForTFResult
+        if [[ "$STATE" != "new" ]] && [[ "$STATE" != "queued" ]]; then
+          TF_ARTIFACTS_URL=$(curl -sk "$TESTING_FARM_API_URL/requests/$R_ID" | jq -r '.run.artifacts')
+          echo "Artifacts URL is \"$TF_ARTIFACTS_URL\""
+        fi
+        OVERALL_RESULT="null"
+        if [[ "$STATE" == "complete" ]] || [[ "$STATE" == "error" ]]; then
+          OVERALL_RESULT=$(curl -sk "$TESTING_FARM_API_URL/requests/$R_ID" | jq -r '.result.overall')
+          echo "Test result is \"$OVERALL_RESULT\""
+        else
+          OVERALL_RESULT=$STATE
+        fi
+        if [[ "$OVERALL_RESULT" == "passed" ]] || [[ "$OVERALL_RESULT" == "skipped" ]]; then
+          exit 0
+        else
+          if [[ "${WAIVE}" == "1" ]]; then
+            echo "Waive the failed tests."
+            exit 0
+          else
+            exit 1
+          fi
+        fi
