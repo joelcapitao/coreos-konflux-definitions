@@ -1,0 +1,64 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: init
+spec:
+  description: Init
+  params:
+    - name: SNAPSHOT
+      description: A list of container images that should undergo testing
+    - name: GIT_URL
+      description: URL of the GIT repository that contains the tests.
+    - name: GIT_REF
+      description: Branch of the git repository used containing the tests
+    - name: DEBUG_OUTPUT
+  results:
+    - name: RUN_TEST
+  volumes:
+    - name: podinfo
+      downwardAPI:
+        items:
+          - path: "labels"
+            fieldRef:
+              fieldPath: metadata.labels
+          - path: "annotations"
+            fieldRef:
+              fieldPath: metadata.annotations
+  stepTemplate:
+    computeResources:
+      limits:
+        memory: 256Mi
+      requests:
+        memory: 128Mi
+  steps:
+    - name: decide-to-run-tests
+      image: quay.io/testing-farm/cli:latest
+      volumeMounts:
+        - name: podinfo
+          mountPath: /etc/podinfo
+      env:
+        - name: SNAPSHOT
+          value: $(params.SNAPSHOT)
+        - name: GIT_URL
+          value: $(params.GIT_URL)
+        - name: GIT_REF
+          value: $(params.GIT_REF)
+        - name: DEBUG_OUTPUT
+          value: $(params.DEBUG_OUTPUT)
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        [[ "${DEBUG_OUTPUT}" == "1" ]] && set -x
+
+        wget -q "${GIT_URL}/raw/refs/heads/${GIT_REF}/tekton/scripts/konflux_utils.sh"
+        . ./konflux_utils.sh
+        installAlpinePkgs
+        getEnv
+
+        KEYWORD="[test-kola]"
+
+        if [[ "$SHA_TITLE" =~ "$KEYWORD" ]]; then
+            printf "%s" "true" >"$(results.RUN_TEST.path)"
+        else
+            printf "%s" "false" >"$(results.RUN_TEST.path)"
+        fi

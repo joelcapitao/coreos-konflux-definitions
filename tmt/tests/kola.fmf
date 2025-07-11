@@ -1,0 +1,4 @@
+test: ./test.sh
+duration: 3h
+environment:
+  TEST_CASE: kola
