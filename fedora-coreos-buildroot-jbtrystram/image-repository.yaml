@@ -1,0 +1,21 @@
+---
+apiVersion: appstudio.redhat.com/v1alpha1
+kind: ImageRepository
+metadata:
+  annotations:
+    image-controller.appstudio.redhat.com/update-component-image: 'true'
+  name: imagerepository-for-fedora-coreos-buildroot-jbtrystram
+  namespace: coreos-tenant
+  labels:
+    appstudio.redhat.com/application: jbtrystram-experimentation
+    appstudio.redhat.com/component: fedora-coreos-buildroot-jbtrystram
+spec:
+  image:
+    name: coreos-tenant/fedora-coreos-buildroot-jbtrystram
+    visibility: public
+  notifications:
+    - config:
+        url: https://bombino.api.redhat.com/v1/sbom/quay/push
+      event: repo_push
+      method: webhook
+      title: SBOM-event-to-Bombino

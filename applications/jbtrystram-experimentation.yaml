@@ -1,0 +1,10 @@
+---
+apiVersion: appstudio.redhat.com/v1alpha1
+kind: Application 
+metadata:
+  name: jbtrystram-experimentation
+  namespace: coreos-tenant
+  annotations:
+    application.thumbnail: "1"
+spec:
+  displayName: "jbtrystram experimentation"

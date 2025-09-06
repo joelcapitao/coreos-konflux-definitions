@@ -1,0 +1,21 @@
+---
+apiVersion: appstudio.redhat.com/v1alpha1
+kind: Component
+metadata:
+  name: fedora-coreos-buildroot-jbtrystram
+  namespace: coreos-tenant
+  annotations:
+    build.appstudio.openshift.io/request: configure-pac
+    build.appstudio.openshift.io/pipeline: '{"name":"docker-build-oci-ta","bundle":"latest"}' 
+    git-provider: github
+    git-provider-url: github.com
+spec:
+  application: jbtrystram-experimentation
+  componentName: fedora-coreos-buildroot-jbtrystram
+  source:
+    git:
+      url: https://github.com/jbtrystram/fedora-coreos-config.git
+      revision: main
+      context: ./ci/buildroot
+      dockerfileUrl: Dockerfile
+  containerImage: quay.io/konflux-fedora/coreos-tenant/fedora-coreos-buildroot-jbtrystram
