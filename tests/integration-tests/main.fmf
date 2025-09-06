@@ -1,0 +1,20 @@
+summary: Test the integration pipeline in local Konflux CI
+description: |
+  This test is used to test the integration pipeline in local Konflux CI.
+  It is done by
+    * Deploying a local Konflux CI cluster as decribed in https://github.com/konflux-ci/konflux-ci/blob/main/README.md#trying-out-konflux
+    * Setup needed secrets, component and applications
+    * Commenting the https://gitlab.com/testing-farm/integrations/tekton-testrepo/-/merge_requests/1 MR to trigger the building process
+    * Waiting for the build to finish
+    * Checking the build result
+test: ./test.sh
+framework: beakerlib
+require:
+  - git
+  - openssl
+  - podman
+  - glab
+  - jq
+order: 10
+duration: 60m
+

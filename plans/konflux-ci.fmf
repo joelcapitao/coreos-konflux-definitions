@@ -1,0 +1,24 @@
+summary: Integration tests for Konflux CI
+description: |
+  This test is used to test the integration pipeline in local Konflux CI.
+
+  It is done by:
+    * Deploying a local Konflux CI cluster as decribed in https://github.com/konflux-ci/konflux-ci/blob/main/README.md#trying-out-konflux
+    * Setup needed secrets, component and applications
+    * Commenting the https://gitlab.com/testing-farm/integrations/tekton-testrepo/-/merge_requests/1 MR to trigger the building process
+    * Waiting for the build to finish
+    * Checking the build result
+
+  The needed variables are:
+    * GITLAB_ACCESS_TOKEN -  GitLab access token to be used to comment the MR
+    * QUAY_KONFLUX_APP_TOKEN - Quay token to be used to push the image, without it the Konflux CI won't trigger the building process
+    * SMEE_WEBHOOK_SECRET - A secret of the webhook to be used to trigger the building process. The webhook is created in the tekton-testrepo repository and connected with smee.io
+    * TESTING_FARM_API_TOKEN - A token to be used in integration pipeline to trigger Testing Farm testing.
+
+discover:
+  how: fmf
+execute:
+  how: tmt
+provision:
+  hardware:
+    memory: ">=12GB"
